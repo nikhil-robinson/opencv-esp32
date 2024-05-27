@@ -15,10 +15,10 @@ files:
   - opencv/data/CMakeLists.txt
   - opencv/samples/CMakeLists.txt
   - opencv/doc/CMakeLists.txt
-repository: https://github.com/espressif/opencv.git
+repository: https://github.com/nikhil-robinson/opencv-esp32.git
 targets:
 - esp32
 - esp32s2
 - esp32s3
-url: https://github.com/espressif/opencv
+url: https://github.com/nikhil-robinson/opencv-esp32
 version: 4.7.0~5
