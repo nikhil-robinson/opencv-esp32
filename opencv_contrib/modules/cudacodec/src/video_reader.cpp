@@ -50,6 +50,7 @@ using namespace cv::cudacodec;
 
 Ptr<VideoReader> cv::cudacodec::createVideoReader(const String&, const std::vector<int>&, const VideoReaderInitParams) { throw_no_cuda(); return Ptr<VideoReader>(); }
 Ptr<VideoReader> cv::cudacodec::createVideoReader(const Ptr<RawVideoSource>&, const VideoReaderInitParams) { throw_no_cuda(); return Ptr<VideoReader>(); }
+void cv::cudacodec::MapHist(const GpuMat&, Mat&) { throw_no_cuda(); }
 
 #else // HAVE_NVCUVID
 
@@ -111,10 +112,12 @@ namespace
     {
     public:
         explicit VideoReaderImpl(const Ptr<VideoSource>& source, const int minNumDecodeSurfaces, const bool allowFrameDrop = false , const bool udpSource = false,
-            const Size targetSz = Size(), const Rect srcRoi = Rect(), const Rect targetRoi = Rect());
+            const Size targetSz = Size(), const Rect srcRoi = Rect(), const Rect targetRoi = Rect(), const bool enableHistogram = false, const int firstFrameIdx = 0);
         ~VideoReaderImpl();
 
         bool nextFrame(GpuMat& frame, Stream& stream) CV_OVERRIDE;
+
+        bool nextFrame(GpuMat& frame, GpuMat& histogram, Stream& stream) CV_OVERRIDE;
 
         FormatInfo format() const CV_OVERRIDE;
 
@@ -132,7 +135,10 @@ namespace
         bool get(const int propertyId, double& propertyVal) const CV_OVERRIDE;
 
     private:
-        bool internalGrab(GpuMat& frame, Stream& stream);
+        bool skipFrame();
+        bool aquireFrameInfo(std::pair<CUVIDPARSERDISPINFO, CUVIDPROCPARAMS>& frameInfo, Stream& stream = Stream::Null());
+        void releaseFrameInfo(const std::pair<CUVIDPARSERDISPINFO, CUVIDPROCPARAMS>& frameInfo);
+        bool internalGrab(GpuMat & frame, GpuMat & histogram, Stream & stream);
         void waitForDecoderInit();
 
         Ptr<VideoSource> videoSource_;
@@ -145,12 +151,16 @@ namespace
 
         std::deque< std::pair<CUVIDPARSERDISPINFO, CUVIDPROCPARAMS> > frames_;
         std::vector<RawPacket> rawPackets;
-        GpuMat lastFrame;
+        GpuMat lastFrame, lastHistogram;
         static const int decodedFrameIdx = 0;
         static const int extraDataIdx = 1;
         static const int rawPacketsBaseIdx = 2;
         ColorFormat colorFormat = ColorFormat::BGRA;
+        static const String errorMsg;
+        int iFrame = 0;
     };
+
+    const String VideoReaderImpl::errorMsg = "Parsing/Decoding video source failed, check GPU memory is available and GPU supports requested functionality.";
 
     FormatInfo VideoReaderImpl::format() const
     {
@@ -161,13 +171,13 @@ namespace
         for (;;) {
             if (videoDecoder_->inited()) break;
             if (videoParser_->hasError() || frameQueue_->isEndOfDecode())
-                CV_Error(Error::StsError, "Parsing/Decoding video source failed, check GPU memory is available and GPU supports hardware decoding.");
+                CV_Error(Error::StsError, errorMsg);
             Thread::sleep(1);
         }
     }
 
     VideoReaderImpl::VideoReaderImpl(const Ptr<VideoSource>& source, const int minNumDecodeSurfaces, const bool allowFrameDrop, const bool udpSource,
-        const Size targetSz, const Rect srcRoi, const Rect targetRoi) :
+        const Size targetSz, const Rect srcRoi, const Rect targetRoi, const bool enableHistogram, const int firstFrameIdx) :
         videoSource_(source),
         lock_(0)
     {
@@ -179,11 +189,13 @@ namespace
         cuSafeCall( cuCtxGetCurrent(&ctx) );
         cuSafeCall( cuvidCtxLockCreate(&lock_, ctx) );
         frameQueue_.reset(new FrameQueue());
-        videoDecoder_.reset(new VideoDecoder(videoSource_->format().codec, minNumDecodeSurfaces, targetSz, srcRoi, targetRoi, ctx, lock_));
+        videoDecoder_.reset(new VideoDecoder(videoSource_->format().codec, minNumDecodeSurfaces, targetSz, srcRoi, targetRoi, enableHistogram, ctx, lock_));
         videoParser_.reset(new VideoParser(videoDecoder_, frameQueue_, allowFrameDrop, udpSource));
         videoSource_->setVideoParser(videoParser_);
         videoSource_->start();
         waitForDecoderInit();
+        for(iFrame = videoSource_->getFirstFrameIdx(); iFrame < firstFrameIdx; iFrame++)
+            CV_Assert(skipFrame());
         videoSource_->updateFormat(videoDecoder_->format());
     }
 
@@ -203,10 +215,7 @@ namespace
         CUvideoctxlock m_lock;
     };
 
-    bool VideoReaderImpl::internalGrab(GpuMat& frame, Stream& stream) {
-        if (videoParser_->hasError())
-            CV_Error(Error::StsError, "Parsing/Decoding video source failed, check GPU memory is available and GPU supports hardware decoding.");
-
+    bool VideoReaderImpl::aquireFrameInfo(std::pair<CUVIDPARSERDISPINFO, CUVIDPROCPARAMS>& frameInfo, Stream& stream) {
         if (frames_.empty())
         {
             CUVIDPARSERDISPINFO displayInfo;
@@ -217,7 +226,7 @@ namespace
                     break;
 
                 if (videoParser_->hasError())
-                    CV_Error(Error::StsError, "Parsing/Decoding video source failed, check GPU memory is available and GPU supports hardware decoding.");
+                    CV_Error(Error::StsError, errorMsg);
 
                 if (frameQueue_->isEndOfDecode())
                     return false;
@@ -228,7 +237,6 @@ namespace
 
             bool isProgressive = displayInfo.progressive_frame != 0;
             const int num_fields = isProgressive ? 1 : 2 + displayInfo.repeat_first_field;
-            videoSource_->updateFormat(videoDecoder_->format());
 
             for (int active_field = 0; active_field < num_fields; ++active_field)
             {
@@ -236,43 +244,80 @@ namespace
                 std::memset(&videoProcParams, 0, sizeof(CUVIDPROCPARAMS));
 
                 videoProcParams.progressive_frame = displayInfo.progressive_frame;
-                videoProcParams.second_field      = active_field;
-                videoProcParams.top_field_first   = displayInfo.top_field_first;
-                videoProcParams.unpaired_field    = (num_fields == 1);
+                videoProcParams.second_field = active_field;
+                videoProcParams.top_field_first = displayInfo.top_field_first;
+                videoProcParams.unpaired_field = (num_fields == 1);
                 videoProcParams.output_stream = StreamAccessor::getStream(stream);
 
                 frames_.push_back(std::make_pair(displayInfo, videoProcParams));
             }
         }
+        else {
+            for (auto& frame : frames_)
+                frame.second.output_stream = StreamAccessor::getStream(stream);
+        }
 
         if (frames_.empty())
             return false;
 
-        std::pair<CUVIDPARSERDISPINFO, CUVIDPROCPARAMS> frameInfo = frames_.front();
+        frameInfo = frames_.front();
         frames_.pop_front();
+        return true;
+    }
+
+    void VideoReaderImpl::releaseFrameInfo(const std::pair<CUVIDPARSERDISPINFO, CUVIDPROCPARAMS>& frameInfo) {
+        // release the frame, so it can be re-used in decoder
+        if (frames_.empty())
+            frameQueue_->releaseFrame(frameInfo.first);
+    }
+
+    bool VideoReaderImpl::internalGrab(GpuMat& frame, GpuMat& histogram, Stream& stream) {
+        if (videoParser_->hasError())
+            CV_Error(Error::StsError, errorMsg);
+
+        std::pair<CUVIDPARSERDISPINFO, CUVIDPROCPARAMS> frameInfo;
+        if (!aquireFrameInfo(frameInfo, stream))
+            return false;
 
         {
             VideoCtxAutoLock autoLock(lock_);
+
+            unsigned long long cuHistogramPtr = 0;
+            const cudacodec::FormatInfo fmt = videoDecoder_->format();
+            if (fmt.enableHistogram)
+                frameInfo.second.histogram_dptr = &cuHistogramPtr;
 
             // map decoded video frame to CUDA surface
             GpuMat decodedFrame = videoDecoder_->mapFrame(frameInfo.first.picture_index, frameInfo.second);
 
             cvtFromNv12(decodedFrame, frame, videoDecoder_->targetWidth(), videoDecoder_->targetHeight(), colorFormat, videoDecoder_->format().videoFullRangeFlag, stream);
 
+            if (fmt.enableHistogram) {
+                const size_t histogramSz = 4 * fmt.nMaxHistogramBins;
+                histogram.create(1, fmt.nMaxHistogramBins, CV_32S);
+                cuSafeCall(cuMemcpyDtoDAsync((CUdeviceptr)(histogram.data), cuHistogramPtr, histogramSz, StreamAccessor::getStream(stream)));
+            }
+
             // unmap video frame
             // unmapFrame() synchronizes with the VideoDecode API (ensures the frame has finished decoding)
             videoDecoder_->unmapFrame(decodedFrame);
         }
 
-        // release the frame, so it can be re-used in decoder
-        if (frames_.empty())
-            frameQueue_->releaseFrame(frameInfo.first);
+        releaseFrameInfo(frameInfo);
+        iFrame++;
+        return true;
+    }
 
+    bool VideoReaderImpl::skipFrame() {
+        std::pair<CUVIDPARSERDISPINFO, CUVIDPROCPARAMS> frameInfo;
+        if (!aquireFrameInfo(frameInfo))
+            return false;
+        releaseFrameInfo(frameInfo);
         return true;
     }
 
     bool VideoReaderImpl::grab(Stream& stream) {
-        return internalGrab(lastFrame, stream);
+        return internalGrab(lastFrame, lastHistogram, stream);
     }
 
     bool VideoReaderImpl::retrieve(OutputArray frame, const size_t idx) const {
@@ -382,12 +427,22 @@ namespace
     }
 
     bool VideoReaderImpl::get(const int propertyId, double& propertyVal) const {
+        if (propertyId == cv::VideoCaptureProperties::CAP_PROP_POS_FRAMES) {
+            propertyVal = static_cast<double>(iFrame);
+            return true;
+        }
         return videoSource_->get(propertyId, propertyVal);
     }
 
     bool VideoReaderImpl::nextFrame(GpuMat& frame, Stream& stream)
     {
-        if (!internalGrab(frame, stream))
+        GpuMat tmp;
+        return nextFrame(frame, tmp, stream);
+    }
+
+    bool VideoReaderImpl::nextFrame(GpuMat& frame, GpuMat& histogram, Stream& stream)
+    {
+        if (!internalGrab(frame, histogram, stream))
             return false;
         return true;
     }
@@ -398,11 +453,10 @@ Ptr<VideoReader> cv::cudacodec::createVideoReader(const String& filename, const 
     CV_Assert(!filename.empty());
 
     Ptr<VideoSource> videoSource;
-
     try
     {
         // prefer ffmpeg to cuvidGetSourceVideoFormat() which doesn't always return the corrct raw pixel format
-        Ptr<RawVideoSource> source(new FFmpegVideoSource(filename, sourceParams));
+        Ptr<RawVideoSource> source(new FFmpegVideoSource(filename, sourceParams, params.firstFrameIdx));
         videoSource.reset(new RawVideoSourceWrapper(source, params.rawMode));
     }
     catch (...)
@@ -410,16 +464,27 @@ Ptr<VideoReader> cv::cudacodec::createVideoReader(const String& filename, const 
         if (sourceParams.size()) throw;
         videoSource.reset(new CuvidVideoSource(filename));
     }
-
     return makePtr<VideoReaderImpl>(videoSource, params.minNumDecodeSurfaces, params.allowFrameDrop, params.udpSource, params.targetSz,
-        params.srcRoi, params.targetRoi);
+        params.srcRoi, params.targetRoi, params.enableHistogram, params.firstFrameIdx);
 }
 
 Ptr<VideoReader> cv::cudacodec::createVideoReader(const Ptr<RawVideoSource>& source, const VideoReaderInitParams params)
 {
     Ptr<VideoSource> videoSource(new RawVideoSourceWrapper(source, params.rawMode));
     return makePtr<VideoReaderImpl>(videoSource, params.minNumDecodeSurfaces, params.allowFrameDrop, params.udpSource, params.targetSz,
-        params.srcRoi, params.targetRoi);
+        params.srcRoi, params.targetRoi, params.enableHistogram, params.firstFrameIdx);
+}
+
+void cv::cudacodec::MapHist(const GpuMat& hist, Mat& histFull) {
+    Mat histHost; hist.download(histHost);
+    histFull.create(histHost.size(), histHost.type());
+    histFull = 0;
+    const float scale = 255.0f / 219.0f;
+    const int offset = 16;
+    for (int iScaled = 0; iScaled < histHost.cols; iScaled++) {
+        const int iHistFull = std::min(std::max(0, static_cast<int>(std::round((iScaled - offset) * scale))), static_cast<int>(histFull.total()) - 1);
+        histFull.at<int>(iHistFull) += histHost.at<int>(iScaled);
+    }
 }
 
 #endif // HAVE_NVCUVID

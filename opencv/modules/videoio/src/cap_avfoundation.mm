@@ -61,6 +61,8 @@
 
 #define DISABLE_AUTO_RESTART 999
 
+#if !TARGET_OS_VISION
+
 @interface CaptureDelegate : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
 {
     int newFrame;
@@ -125,6 +127,7 @@ class CvCaptureCAM : public CvCapture {
         int disableAutoRestart;
 };
 
+#endif
 
 /*****************************************************************************
  *
@@ -160,6 +163,7 @@ private:
     uint32_t  mMode;
     int       mFormat;
 
+    void handleTracks(NSArray<AVAssetTrack *>* tracks, const char* filename);
     bool setupReadingAt(CMTime position);
     IplImage* retrieveFramePixelBuffer();
     int getPreferredOrientationDegrees() const;
@@ -217,14 +221,18 @@ cv::Ptr<cv::IVideoCapture> cv::create_AVFoundation_capture_file(const std::strin
 
 }
 
+
 cv::Ptr<cv::IVideoCapture> cv::create_AVFoundation_capture_cam(int index)
 {
+#if !TARGET_OS_VISION
     CvCaptureCAM* retval = new CvCaptureCAM(index);
     if (retval->didStart())
         return cv::makePtr<cv::LegacyCapture>(retval);
     delete retval;
+#endif
     return 0;
 }
+
 
 cv::Ptr<cv::IVideoWriter> cv::create_AVFoundation_writer(const std::string& filename, int fourcc,
                                                          double fps, const cv::Size &frameSize,
@@ -244,6 +252,8 @@ cv::Ptr<cv::IVideoWriter> cv::create_AVFoundation_writer(const std::string& file
  * CvCaptureCAM is the instantiation of a capture source for cameras.
  *
  *****************************************************************************/
+
+#if !TARGET_OS_VISION
 
 CvCaptureCAM::CvCaptureCAM(int cameraNum) {
     mCaptureSession = nil;
@@ -751,7 +761,7 @@ fromConnection:(AVCaptureConnection *)connection{
         bgr_image->imageData = bgr_imagedata;
         bgr_image->imageSize = (int)currSize;
 
-        cvCvtColor(image, bgr_image, CV_BGRA2BGR);
+        cv::cvtColor(cv::cvarrToMat(image), cv::cvarrToMat(bgr_image), cv::COLOR_BGRA2BGR);
 
         // image taken from the buffer is incorrected rotated. I'm using cvTranspose + cvFlip.
         // There should be an option in iOS API to rotate the buffer output orientation.
@@ -773,6 +783,7 @@ fromConnection:(AVCaptureConnection *)connection{
 
 @end
 
+#endif
 
 /*****************************************************************************
  *
@@ -811,24 +822,26 @@ CvCaptureFile::CvCaptureFile(const char* filename) {
         return;
     }
 
+// Available since iOS 15
+#if TARGET_OS_VISION || (defined(__IPHONE_OS_VERSION_MIN_REQUIRED) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 150000)
+    if (@available(iOS 15, *)) {
+        [mAsset loadTracksWithMediaType:AVMediaTypeVideo completionHandler:^(NSArray<AVAssetTrack *>* tracks, NSError* err) {
+            if (err != nil) {
+                handleTracks(tracks, filename);
+            }
+            [localpool drain];
+        }];
+        return;
+    } else {
+#if !TARGET_OS_VISION
+        NSArray *tracks = [mAsset tracksWithMediaType:AVMediaTypeVideo];
+        handleTracks(tracks, filename);
+#endif
+    }
+#else
     NSArray *tracks = [mAsset tracksWithMediaType:AVMediaTypeVideo];
-    if ([tracks count] == 0) {
-        fprintf(stderr, "OpenCV: Couldn't read video stream from file \"%s\"\n", filename);
-        [localpool drain];
-        started = 0;
-        return;
-    }
-
-    mAssetTrack = [tracks[0] retain];
-
-    if ( ! setupReadingAt(kCMTimeZero) ) {
-        fprintf(stderr, "OpenCV: Couldn't read movie file \"%s\"\n", filename);
-        [localpool drain];
-        started = 0;
-        return;
-    }
-
-    started = 1;
+    handleTracks(tracks, filename);
+#endif
     [localpool drain];
 }
 
@@ -848,6 +861,24 @@ CvCaptureFile::~CvCaptureFile() {
     }
 
     [localpool drain];
+}
+
+void CvCaptureFile::handleTracks(NSArray<AVAssetTrack *>* tracks, const char* filename) {
+    if ([tracks count] == 0) {
+        fprintf(stderr, "OpenCV: Couldn't read video stream from file \"%s\"\n", filename);
+        started = 0;
+        return;
+    }
+
+    mAssetTrack = [tracks[0] retain];
+
+    if ( ! setupReadingAt(kCMTimeZero) ) {
+        fprintf(stderr, "OpenCV: Couldn't read movie file \"%s\"\n", filename);
+        started = 0;
+        return;
+    }
+
+    started = 1;
 }
 
 bool CvCaptureFile::setupReadingAt(CMTime position) {
@@ -1001,11 +1032,11 @@ IplImage* CvCaptureFile::retrieveFramePixelBuffer() {
         deviceChannels = 4;
 
         if (mMode == CV_CAP_MODE_BGR) {
-            cvtCode = CV_BGRA2BGR;
+            cvtCode = cv::COLOR_BGRA2BGR;
         } else if (mMode == CV_CAP_MODE_RGB) {
-            cvtCode = CV_BGRA2RGB;
+            cvtCode = cv::COLOR_BGRA2RGB;
         } else if (mMode == CV_CAP_MODE_GRAY) {
-            cvtCode = CV_BGRA2GRAY;
+            cvtCode = cv::COLOR_BGRA2GRAY;
         } else {
             CVPixelBufferUnlockBaseAddress(mGrabbedPixels, 0);
             CVBufferRelease(mGrabbedPixels);
@@ -1017,11 +1048,11 @@ IplImage* CvCaptureFile::retrieveFramePixelBuffer() {
         deviceChannels = 3;
 
         if (mMode == CV_CAP_MODE_BGR) {
-            cvtCode = CV_RGB2BGR;
+            cvtCode = cv::COLOR_RGB2BGR;
         } else if (mMode == CV_CAP_MODE_RGB) {
             cvtCode = 0;
         } else if (mMode == CV_CAP_MODE_GRAY) {
-            cvtCode = CV_RGB2GRAY;
+            cvtCode = cv::COLOR_RGB2GRAY;
         } else {
             CVPixelBufferUnlockBaseAddress(mGrabbedPixels, 0);
             CVBufferRelease(mGrabbedPixels);
@@ -1033,11 +1064,11 @@ IplImage* CvCaptureFile::retrieveFramePixelBuffer() {
         deviceChannels = 2;
 
         if (mMode == CV_CAP_MODE_BGR) {
-            cvtCode = CV_YUV2BGR_UYVY;
+            cvtCode = cv::COLOR_YUV2BGR_UYVY;
         } else if (mMode == CV_CAP_MODE_RGB) {
-            cvtCode = CV_YUV2RGB_UYVY;
+            cvtCode = cv::COLOR_YUV2RGB_UYVY;
         } else if (mMode == CV_CAP_MODE_GRAY) {
-            cvtCode = CV_YUV2GRAY_UYVY;
+            cvtCode = cv::COLOR_YUV2GRAY_UYVY;
         } else if (mMode == CV_CAP_MODE_YUYV) {
             cvtCode = -1;    // Copy
         } else {
@@ -1053,11 +1084,11 @@ IplImage* CvCaptureFile::retrieveFramePixelBuffer() {
         deviceChannels = 1;
 
         if (mMode == CV_CAP_MODE_BGR) {
-            cvtCode = CV_YUV2BGR_YV12;
+            cvtCode = cv::COLOR_YUV2BGR_YV12;
         } else if (mMode == CV_CAP_MODE_RGB) {
-            cvtCode = CV_YUV2RGB_YV12;
+            cvtCode = cv::COLOR_YUV2RGB_YV12;
         } else if (mMode == CV_CAP_MODE_GRAY) {
-            cvtCode = CV_YUV2GRAY_420;
+            cvtCode = cv::COLOR_YUV2GRAY_420;
         } else {
             CVPixelBufferUnlockBaseAddress(mGrabbedPixels, 0);
             CVBufferRelease(mGrabbedPixels);
@@ -1089,7 +1120,7 @@ IplImage* CvCaptureFile::retrieveFramePixelBuffer() {
     if (cvtCode == -1) {
         cv::cvarrToMat(mDeviceImage).copyTo(cv::cvarrToMat(mOutImage));
     } else {
-        cvCvtColor(mDeviceImage, mOutImage, cvtCode);
+        cv::cvtColor(cv::cvarrToMat(mDeviceImage), cv::cvarrToMat(mOutImage), cvtCode);
     }
 
     CVPixelBufferUnlockBaseAddress(mGrabbedPixels, 0);
@@ -1269,25 +1300,25 @@ CvVideoWriter_AVFoundation::CvVideoWriter_AVFoundation(const char* filename, int
         //exception;
     }
 
-    // Three codec supported AVVideoCodecH264 AVVideoCodecJPEG AVVideoCodecTypeHEVC
+    // Three codec supported AVVideoCodecTypeH264 AVVideoCodecTypeJPEG AVVideoCodecTypeHEVC
     // On iPhone 3G H264 is not supported.
     if (fourcc == CV_FOURCC('J','P','E','G') || fourcc == CV_FOURCC('j','p','e','g') ||
             fourcc == CV_FOURCC('M','J','P','G') || fourcc == CV_FOURCC('m','j','p','g')){
-        codec = [AVVideoCodecJPEG copy]; // Use JPEG codec if specified, otherwise H264
+        codec = [AVVideoCodecTypeJPEG copy]; // Use JPEG codec if specified, otherwise H264
     }else if(fourcc == CV_FOURCC('H','2','6','4') || fourcc == CV_FOURCC('a','v','c','1')){
-            codec = [AVVideoCodecH264 copy];
+            codec = [AVVideoCodecTypeH264 copy];
 // Available since iOS 11
-#if defined(__IPHONE_OS_VERSION_MIN_REQUIRED) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 110000
+#if TARGET_OS_VISION || (defined(__IPHONE_OS_VERSION_MIN_REQUIRED) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 110000)
     }else if(fourcc == CV_FOURCC('H','2','6','5') || fourcc == CV_FOURCC('h','v','c','1') ||
             fourcc == CV_FOURCC('H','E','V','C') || fourcc == CV_FOURCC('h','e','v','c')){
         if (@available(iOS 11, *)) {
             codec = [AVVideoCodecTypeHEVC copy];
         } else {
-            codec = [AVVideoCodecH264 copy];
+            codec = [AVVideoCodecTypeH264 copy];
         }
 #endif
     }else{
-        codec = [AVVideoCodecH264 copy]; // default canonical H264.
+        codec = [AVVideoCodecTypeH264 copy]; // default canonical H264.
     }
 
     //NSLog(@"Path: %@", path);
@@ -1349,17 +1380,17 @@ CvVideoWriter_AVFoundation::~CvVideoWriter_AVFoundation() {
     NSAutoreleasePool* localpool = [[NSAutoreleasePool alloc] init];
 
     [mMovieWriterInput markAsFinished];
-    [mMovieWriter finishWriting];
-    [mMovieWriter release];
-    [mMovieWriterInput release];
-    [mMovieWriterAdaptor release];
-    [path release];
-    [codec release];
-    [fileType release];
-    cvReleaseImage(&argbimage);
+    [mMovieWriter finishWritingWithCompletionHandler:^() {
+        [mMovieWriter release];
+        [mMovieWriterInput release];
+        [mMovieWriterAdaptor release];
+        [path release];
+        [codec release];
+        [fileType release];
+        cvReleaseImage(&argbimage);
 
-    [localpool drain];
-
+        [localpool drain];
+    }];
 }
 
 bool CvVideoWriter_AVFoundation::writeFrame(const IplImage* iplimage) {
@@ -1383,10 +1414,10 @@ bool CvVideoWriter_AVFoundation::writeFrame(const IplImage* iplimage) {
 
     if (movieColor) {
         //assert(iplimage->nChannels == 3);
-        cvCvtColor(iplimage, argbimage, CV_BGR2BGRA);
+        cv::cvtColor(cv::cvarrToMat(iplimage), cv::cvarrToMat(argbimage), cv::COLOR_BGR2BGRA);
     }else{
         //assert(iplimage->nChannels == 1);
-        cvCvtColor(iplimage, argbimage, CV_GRAY2BGRA);
+        cv::cvtColor(cv::cvarrToMat(iplimage), cv::cvarrToMat(argbimage), cv::COLOR_GRAY2BGRA);
     }
     //IplImage -> CGImage conversion
     CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();

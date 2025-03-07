@@ -293,7 +293,7 @@ public:
     CV_ALWAYS_INLINE fixedpoint16& operator = (const int8_t& _val) { val = ((int16_t)_val) << fixedShift; return *this; }
     CV_ALWAYS_INLINE fixedpoint16& operator = (const cv::softdouble& _val) { val = (int16_t)cvRound(_val * cv::softdouble((1 << fixedShift))); return *this; }
     CV_ALWAYS_INLINE fixedpoint16& operator = (const fixedpoint16& _val) { val = _val.val; return *this; }
-    CV_ALWAYS_INLINE fixedpoint16 operator * (const int8_t& val2) const { return cv::saturate_cast<int16_t>((int)val * val2); }
+    CV_ALWAYS_INLINE fixedpoint16 operator * (const int8_t& val2) const { return cv::saturate_cast<int16_t>((int32_t)val * val2); }
     CV_ALWAYS_INLINE fixedpoint32 operator * (const fixedpoint16& val2) const { return (int32_t)val * (int32_t)(val2.val); }
     CV_ALWAYS_INLINE fixedpoint16 operator + (const fixedpoint16& val2) const
     {
@@ -341,7 +341,7 @@ public:
     CV_ALWAYS_INLINE ufixedpoint16& operator = (const uint8_t& _val) { val = ((uint16_t)_val) << fixedShift; return *this; }
     CV_ALWAYS_INLINE ufixedpoint16& operator = (const cv::softdouble& _val) { val = _val.getSign() ? 0 : (uint16_t)cvRound(_val * cv::softdouble((int32_t)(1 << fixedShift))); return *this; }
     CV_ALWAYS_INLINE ufixedpoint16& operator = (const ufixedpoint16& _val) { val = _val.val; return *this; }
-    CV_ALWAYS_INLINE ufixedpoint16 operator * (const uint8_t& val2) const { return cv::saturate_cast<uint16_t>((int32_t)val * val2); }
+    CV_ALWAYS_INLINE ufixedpoint16 operator * (const uint8_t& val2) const { return cv::saturate_cast<uint16_t>((uint32_t)val * val2); }
     CV_ALWAYS_INLINE ufixedpoint32 operator * (const ufixedpoint16& val2) const { return ((uint32_t)val * (uint32_t)(val2.val)); }
     CV_ALWAYS_INLINE ufixedpoint16 operator + (const ufixedpoint16& val2) const
     {
@@ -370,7 +370,7 @@ public:
     static CV_ALWAYS_INLINE ufixedpoint16 one() { return ufixedpoint16((uint16_t)(1 << fixedShift)); }
 
     static CV_ALWAYS_INLINE ufixedpoint16 fromRaw(uint16_t v) { return ufixedpoint16(v); }
-    CV_ALWAYS_INLINE uint16_t raw() { return val; }
+    CV_ALWAYS_INLINE uint16_t raw() const { return val; }
 };
 
 }

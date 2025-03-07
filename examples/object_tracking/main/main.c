@@ -83,7 +83,7 @@
 
 #endif //
 
-
+#ifdef CONFIG_IDF_TARGET_ARCH_XTENSA
 static camera_config_t camera_config = {
     .pin_pwdn  = CAM_PIN_PWDN,
     .pin_reset = CAM_PIN_RESET,
@@ -109,7 +109,7 @@ static camera_config_t camera_config = {
     .ledc_channel = LEDC_CHANNEL_0,
 
     .pixel_format = PIXFORMAT_GRAYSCALE,//YUV422,PIXFORMAT_GRAYSCALE,RGB565,PIXFORMAT_JPEG
-    .frame_size = FRAMESIZE_QVGA,//QQVGA-QXGA Do not use sizes above QVGA when not JPEG
+    .frame_size = FRAMESIZE_240X240,//QQVGA-QXGA Do not use sizes above QVGA when not JPEG
     .jpeg_quality = 12, //0-63 lower number means higher quality
     .fb_count = 1, //if more than one, i2s runs in continuous mode. Use only with JPEG
 
@@ -117,10 +117,12 @@ static camera_config_t camera_config = {
     .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
 
 };
+#endif // CONFIG_IDF_TARGET_ARCH_XTENSA
 
 void cv_init_object_tracking(int pos_x, int pos_y);
 int cv_object_tracking(uint8_t* data, int width, int heigth);
 
+#ifdef CONFIG_IDF_TARGET_ARCH_XTENSA
 esp_err_t camera_capture()
 {
     //acquire a frame
@@ -136,11 +138,17 @@ esp_err_t camera_capture()
     esp_camera_fb_return(fb);
     return ESP_OK;
 }
+#endif // 
+
+void cv_print_info();
 
 void app_main(void)
 {
     printf("Init\n");
-    cv_init_object_tracking(320/2,200/2);
+    // cv_print_info();
+
+    cv_init_object_tracking(240/2,240/2);
+#ifdef CONFIG_IDF_TARGET_ARCH_XTENSA
 
     esp_err_t err = esp_camera_init(&camera_config);
     if (err != ESP_OK) {
@@ -167,4 +175,7 @@ void app_main(void)
         float fps = 1*1000000/(fr_end - fr_start);
         ESP_LOGW("OpenCV", "Object tracking - %2.2f FPS", fps);
     }
+#else
+    ESP_LOGW("OpenCV", "Camera module not defined!");
+#endif
 }

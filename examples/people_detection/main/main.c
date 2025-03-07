@@ -83,7 +83,7 @@
 
 #endif //
 
-
+#ifdef CONFIG_IDF_TARGET_ARCH_XTENSA
 static camera_config_t camera_config = {
     .pin_pwdn  = CAM_PIN_PWDN,
     .pin_reset = CAM_PIN_RESET,
@@ -118,11 +118,12 @@ static camera_config_t camera_config = {
     .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
 
 };
-
+#endif // 
 
 void cv_init_people_detect();
 int cv_people_detect(uint8_t* data, int width, int heigth);
 
+#ifdef CONFIG_IDF_TARGET_ARCH_XTENSA
 esp_err_t camera_capture()
 {
     //acquire a frame
@@ -138,12 +139,17 @@ esp_err_t camera_capture()
     esp_camera_fb_return(fb);
     return ESP_OK;
 }
+#endif // 
+
+void cv_print_info();
 
 void app_main(void)
 {
     printf("Init\n");
+    cv_print_info();
     cv_init_people_detect();
 
+#ifdef CONFIG_IDF_TARGET_ARCH_XTENSA
     esp_err_t err = esp_camera_init(&camera_config);
     if (err != ESP_OK) {
         ESP_LOGE("CAM", "Camera Init Failed");
@@ -169,4 +175,7 @@ void app_main(void)
         float fps = 1.0*1000000.0/(fr_end - fr_start);
         ESP_LOGW("OpenCV", "People detector - %2.4f FPS", fps);
     }
+#else
+    ESP_LOGW("OpenCV", "Camera module not defined!");
+#endif
 }

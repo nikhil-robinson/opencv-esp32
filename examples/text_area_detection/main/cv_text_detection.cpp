@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
-#include <opencv2/core/ocl.hpp>
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/imgcodecs/legacy/constants_c.h>
 #include <opencv2/core.hpp>
@@ -35,6 +34,12 @@ using namespace std;
 using namespace cv;
 
 extern "C" void cv_text_detection(uint8_t* data, int width, int heigth);
+
+extern "C" void cv_print_info();
+void cv_print_info()
+{
+    printf("OpenCV info print: %s", cv::getBuildInformation().c_str());
+}
 
 void cv_text_detection(uint8_t* data, int width, int heigth)
 {

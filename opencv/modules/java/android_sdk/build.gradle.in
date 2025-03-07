@@ -89,6 +89,7 @@
 //
 
 apply plugin: 'com.android.library'
+apply plugin: 'maven-publish'
 @KOTLIN_PLUGIN_DECLARATION@
 
 def openCVersionName = "@OPENCV_VERSION@"
@@ -97,6 +98,7 @@ def openCVersionCode = ((@OPENCV_VERSION_MAJOR@ * 100 + @OPENCV_VERSION_MINOR@) 
 println "OpenCV: " +openCVersionName + " " + project.buildscript.sourceFile
 
 android {
+    @OPENCV_ANDROID_NAMESPACE_DECLARATION@
     compileSdkVersion @ANDROID_COMPILE_SDK_VERSION@
 
     defaultConfig {
@@ -114,6 +116,11 @@ android {
         }
     }
 
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_@ANDROID_GRADLE_JAVA_VERSION_INIT@
+        targetCompatibility JavaVersion.VERSION_@ANDROID_GRADLE_JAVA_VERSION_INIT@
+    }
+
     buildTypes {
         debug {
             packagingOptions {
@@ -129,19 +136,55 @@ android {
         }
     }
 
+    buildFeatures {
+        prefabPublishing true
+        buildConfig true
+    }
+    prefab {
+        opencv_jni_shared {
+            headers "native/jni/include"
+        }
+    }
+
     sourceSets {
         main {
             jniLibs.srcDirs = ['native/libs']
             java.srcDirs = ['java/src']
-            aidl.srcDirs = ['java/src']
             res.srcDirs = ['java/res']
             manifest.srcFile 'java/AndroidManifest.xml'
+        }
+    }
+
+    publishing {
+        singleVariant('release') {
+            withSourcesJar()
+            withJavadocJar()
         }
     }
 
     externalNativeBuild {
         cmake {
             path (project.projectDir.toString() + '/libcxx_helper/CMakeLists.txt')
+        }
+    }
+}
+
+publishing {
+    publications {
+        release(MavenPublication) {
+            groupId = 'org.opencv'
+            artifactId = 'opencv'
+            version = '@OPENCV_VERSION_PLAIN@'
+
+            afterEvaluate {
+               from components.release
+           }
+        }
+    }
+    repositories {
+        maven {
+            name = 'myrepo'
+            url = "${project.buildDir}/repo"
         }
     }
 }

@@ -1,6 +1,5 @@
 dependencies:
-  idf:
-    version: '>=4.4'
+  idf: '>=4.4'
 description: OpenCV build for esp-idf
 files:
   exclude:
@@ -20,5 +19,6 @@ targets:
 - esp32
 - esp32s2
 - esp32s3
+- esp32p4
 url: https://github.com/nikhil-robinson/opencv-esp32
 version: 4.7.0~5

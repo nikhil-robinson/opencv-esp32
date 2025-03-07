@@ -1,5 +1,75 @@
+diff --git a/3rdparty/libjpeg-turbo/CMakeLists.txt b/3rdparty/libjpeg-turbo/CMakeLists.txt
+index f41665f329..40ea3629a4 100644
+--- a/3rdparty/libjpeg-turbo/CMakeLists.txt
++++ b/3rdparty/libjpeg-turbo/CMakeLists.txt
+@@ -100,6 +100,17 @@ include(CheckTypeSize)
+ check_type_size("size_t" SIZE_T)
+ check_type_size("unsigned long" UNSIGNED_LONG)
+ 
++check_type_size("signed short" SIZEOF_SIGNED_SHORT)
++check_type_size("unsigned short" SIZEOF_UNSIGNED_SHORT)
++check_type_size("signed int" SIZEOF_SIGNED_INT)
++check_type_size("unsigned int" SIZEOF_UNSIGNED_INT)
++check_type_size("signed long" SIZEOF_SIGNED_LONG)
++check_type_size("unsigned long" SIZEOF_UNSIGNED_LONG)
++check_type_size("signed long long" SIZEOF_SIGNED_LONG_LONG)
++check_type_size("unsigned long long" SIZEOF_UNSIGNED_LONG_LONG)
++check_type_size("unsigned char *" SIZEOF_UNSIGNED_CHAR_P)
++check_type_size("size_t" SIZEOF_SIZE_T)
++
+ if(SIZEOF_SIZE_T EQUAL SIZEOF_UNSIGNED_LONG)
+   check_c_source_compiles("int main(int argc, char **argv) { unsigned long a = argc;  return __builtin_ctzl(a); }"
+     HAVE_BUILTIN_CTZL)
+diff --git a/3rdparty/libtiff/CMakeLists.txt b/3rdparty/libtiff/CMakeLists.txt
+index 9173e207f7..c9bd3155a9 100644
+--- a/3rdparty/libtiff/CMakeLists.txt
++++ b/3rdparty/libtiff/CMakeLists.txt
+@@ -184,8 +184,13 @@ endif()
+ if(NOT MSVC)
+   check_function_exists(isascii    HAVE_ISASCII)
+   check_function_exists(memset     HAVE_MEMSET)
+-  check_function_exists(mmap       HAVE_MMAP)
+-  check_function_exists(getopt     HAVE_GETOPT)
++    check_include_file(sys/mman.h HAVE_MMAP_H)
++    if(HAVE_MMAP_H STREQUAL "")
++      set(HAVE_MMAP 0)
++    else()
++      check_function_exists(mmap       HAVE_MMAP)
++    endif()
++    check_function_exists(getopt     HAVE_GETOPT)
+ endif()
+ check_function_exists(memmove    HAVE_MEMMOVE)
+ check_function_exists(setmode    HAVE_SETMODE)
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index f5e39b4c71..b986bc776e 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -125,6 +125,23 @@ if(OPENCV_WORKAROUND_CMAKE_20989)
+   set(CMAKE_SYSTEM_PROCESSOR_BACKUP ${CMAKE_SYSTEM_PROCESSOR})
+ endif()
+ enable_language(CXX C)
++include(CheckTypeSize)
++include(CheckFunctionExists)
++
++check_type_size("size_t" SIZE_T)
++check_type_size("unsigned long" UNSIGNED_LONG)
++
++check_type_size("signed short" SIZEOF_SIGNED_SHORT)
++check_type_size("unsigned short" SIZEOF_UNSIGNED_SHORT)
++check_type_size("signed int" SIZEOF_SIGNED_INT)
++check_type_size("unsigned int" SIZEOF_UNSIGNED_INT)
++check_type_size("signed long" SIZEOF_SIGNED_LONG)
++check_type_size("unsigned long" SIZEOF_UNSIGNED_LONG)
++check_type_size("signed long long" SIZEOF_SIGNED_LONG_LONG)
++check_type_size("unsigned long long" SIZEOF_UNSIGNED_LONG_LONG)
++check_type_size("unsigned char *" SIZEOF_UNSIGNED_CHAR_P)
++check_type_size("size_t" SIZEOF_SIZE_T)
++
+ if(OPENCV_WORKAROUND_CMAKE_20989)
+   set(CMAKE_SYSTEM_PROCESSOR ${CMAKE_SYSTEM_PROCESSOR_BACKUP})
+ endif()
 diff --git a/modules/core/include/opencv2/core/hal/intrin.hpp b/modules/core/include/opencv2/core/hal/intrin.hpp
-index 207b8cab4e..98caa4c7f3 100644
+index 27beccd9ab..24a8dc9779 100644
 --- a/modules/core/include/opencv2/core/hal/intrin.hpp
 +++ b/modules/core/include/opencv2/core/hal/intrin.hpp
 @@ -62,7 +62,7 @@
@@ -39,7 +109,7 @@ index 207b8cab4e..98caa4c7f3 100644
  CV_INTRIN_DEF_TYPE_TRAITS_NO_Q_TYPE(float, int, unsigned, float, double, float);
  CV_INTRIN_DEF_TYPE_TRAITS_NO_Q_TYPE(uint64, int64, uint64, uint64, void, uint64);
  CV_INTRIN_DEF_TYPE_TRAITS_NO_Q_TYPE(int64, int64, uint64, uint64, void, int64);
-@@ -594,8 +594,8 @@ namespace CV__SIMD_NAMESPACE {
+@@ -592,8 +592,8 @@ namespace CV__SIMD_NAMESPACE {
      inline v_int8 vx_load(const schar * ptr) { return VXPREFIX(_load)(ptr); }
      inline v_uint16 vx_load(const ushort * ptr) { return VXPREFIX(_load)(ptr); }
      inline v_int16 vx_load(const short * ptr) { return VXPREFIX(_load)(ptr); }
@@ -50,7 +120,7 @@ index 207b8cab4e..98caa4c7f3 100644
      inline v_float32 vx_load(const float * ptr) { return VXPREFIX(_load)(ptr); }
      inline v_int64 vx_load(const int64 * ptr) { return VXPREFIX(_load)(ptr); }
      inline v_uint64 vx_load(const uint64 * ptr) { return VXPREFIX(_load)(ptr); }
-@@ -611,8 +611,8 @@ namespace CV__SIMD_NAMESPACE {
+@@ -609,8 +609,8 @@ namespace CV__SIMD_NAMESPACE {
      inline v_int8 vx_load_aligned(const schar * ptr) { return VXPREFIX(_load_aligned)(ptr); }
      inline v_uint16 vx_load_aligned(const ushort * ptr) { return VXPREFIX(_load_aligned)(ptr); }
      inline v_int16 vx_load_aligned(const short * ptr) { return VXPREFIX(_load_aligned)(ptr); }
@@ -61,7 +131,7 @@ index 207b8cab4e..98caa4c7f3 100644
      inline v_float32 vx_load_aligned(const float * ptr) { return VXPREFIX(_load_aligned)(ptr); }
      inline v_int64 vx_load_aligned(const int64 * ptr) { return VXPREFIX(_load_aligned)(ptr); }
      inline v_uint64 vx_load_aligned(const uint64 * ptr) { return VXPREFIX(_load_aligned)(ptr); }
-@@ -628,8 +628,8 @@ namespace CV__SIMD_NAMESPACE {
+@@ -626,8 +626,8 @@ namespace CV__SIMD_NAMESPACE {
      inline v_int8 vx_load_low(const schar * ptr) { return VXPREFIX(_load_low)(ptr); }
      inline v_uint16 vx_load_low(const ushort * ptr) { return VXPREFIX(_load_low)(ptr); }
      inline v_int16 vx_load_low(const short * ptr) { return VXPREFIX(_load_low)(ptr); }
@@ -72,7 +142,7 @@ index 207b8cab4e..98caa4c7f3 100644
      inline v_float32 vx_load_low(const float * ptr) { return VXPREFIX(_load_low)(ptr); }
      inline v_int64 vx_load_low(const int64 * ptr) { return VXPREFIX(_load_low)(ptr); }
      inline v_uint64 vx_load_low(const uint64 * ptr) { return VXPREFIX(_load_low)(ptr); }
-@@ -645,8 +645,8 @@ namespace CV__SIMD_NAMESPACE {
+@@ -643,8 +643,8 @@ namespace CV__SIMD_NAMESPACE {
      inline v_int8 vx_load_halves(const schar * ptr0, const schar * ptr1) { return VXPREFIX(_load_halves)(ptr0, ptr1); }
      inline v_uint16 vx_load_halves(const ushort * ptr0, const ushort * ptr1) { return VXPREFIX(_load_halves)(ptr0, ptr1); }
      inline v_int16 vx_load_halves(const short * ptr0, const short * ptr1) { return VXPREFIX(_load_halves)(ptr0, ptr1); }
@@ -83,7 +153,7 @@ index 207b8cab4e..98caa4c7f3 100644
      inline v_float32 vx_load_halves(const float * ptr0, const float * ptr1) { return VXPREFIX(_load_halves)(ptr0, ptr1); }
      inline v_int64 vx_load_halves(const int64 * ptr0, const int64 * ptr1) { return VXPREFIX(_load_halves)(ptr0, ptr1); }
      inline v_uint64 vx_load_halves(const uint64 * ptr0, const uint64 * ptr1) { return VXPREFIX(_load_halves)(ptr0, ptr1); }
-@@ -662,8 +662,8 @@ namespace CV__SIMD_NAMESPACE {
+@@ -660,8 +660,8 @@ namespace CV__SIMD_NAMESPACE {
      inline v_int8 vx_lut(const schar * ptr, const int* idx) { return VXPREFIX(_lut)(ptr, idx); }
      inline v_uint16 vx_lut(const ushort * ptr, const int* idx) { return VXPREFIX(_lut)(ptr, idx); }
      inline v_int16 vx_lut(const short* ptr, const int* idx) { return VXPREFIX(_lut)(ptr, idx); }
@@ -94,7 +164,7 @@ index 207b8cab4e..98caa4c7f3 100644
      inline v_float32 vx_lut(const float* ptr, const int* idx) { return VXPREFIX(_lut)(ptr, idx); }
      inline v_int64 vx_lut(const int64 * ptr, const int* idx) { return VXPREFIX(_lut)(ptr, idx); }
      inline v_uint64 vx_lut(const uint64 * ptr, const int* idx) { return VXPREFIX(_lut)(ptr, idx); }
-@@ -679,8 +679,8 @@ namespace CV__SIMD_NAMESPACE {
+@@ -677,8 +677,8 @@ namespace CV__SIMD_NAMESPACE {
      inline v_int8 vx_lut_pairs(const schar * ptr, const int* idx) { return VXPREFIX(_lut_pairs)(ptr, idx); }
      inline v_uint16 vx_lut_pairs(const ushort * ptr, const int* idx) { return VXPREFIX(_lut_pairs)(ptr, idx); }
      inline v_int16 vx_lut_pairs(const short* ptr, const int* idx) { return VXPREFIX(_lut_pairs)(ptr, idx); }
@@ -105,7 +175,7 @@ index 207b8cab4e..98caa4c7f3 100644
      inline v_float32 vx_lut_pairs(const float* ptr, const int* idx) { return VXPREFIX(_lut_pairs)(ptr, idx); }
      inline v_int64 vx_lut_pairs(const int64 * ptr, const int* idx) { return VXPREFIX(_lut_pairs)(ptr, idx); }
      inline v_uint64 vx_lut_pairs(const uint64 * ptr, const int* idx) { return VXPREFIX(_lut_pairs)(ptr, idx); }
-@@ -696,8 +696,8 @@ namespace CV__SIMD_NAMESPACE {
+@@ -694,8 +694,8 @@ namespace CV__SIMD_NAMESPACE {
      inline v_int8 vx_lut_quads(const schar* ptr, const int* idx) { return VXPREFIX(_lut_quads)(ptr, idx); }
      inline v_uint16 vx_lut_quads(const ushort* ptr, const int* idx) { return VXPREFIX(_lut_quads)(ptr, idx); }
      inline v_int16 vx_lut_quads(const short* ptr, const int* idx) { return VXPREFIX(_lut_quads)(ptr, idx); }
@@ -116,18 +186,19 @@ index 207b8cab4e..98caa4c7f3 100644
      inline v_float32 vx_lut_quads(const float* ptr, const int* idx) { return VXPREFIX(_lut_quads)(ptr, idx); }
      //! @}
  
-@@ -708,8 +708,8 @@ namespace CV__SIMD_NAMESPACE {
+@@ -706,9 +706,9 @@ namespace CV__SIMD_NAMESPACE {
      inline v_int16 vx_load_expand(const schar * ptr) { return VXPREFIX(_load_expand)(ptr); }
      inline v_uint32 vx_load_expand(const ushort * ptr) { return VXPREFIX(_load_expand)(ptr); }
      inline v_int32 vx_load_expand(const short* ptr) { return VXPREFIX(_load_expand)(ptr); }
 -    inline v_int64 vx_load_expand(const int* ptr) { return VXPREFIX(_load_expand)(ptr); }
 -    inline v_uint64 vx_load_expand(const unsigned* ptr) { return VXPREFIX(_load_expand)(ptr); }
+     inline v_float32 vx_load_expand(const hfloat * ptr) { return VXPREFIX(_load_expand)(ptr); }
 +    inline v_int64 vx_load_expand(const int32_t* ptr) { return VXPREFIX(_load_expand)(ptr); }
 +    inline v_uint64 vx_load_expand(const uint32_t* ptr) { return VXPREFIX(_load_expand)(ptr); }
-     inline v_float32 vx_load_expand(const float16_t * ptr) { return VXPREFIX(_load_expand)(ptr); }
      //! @}
  
-@@ -727,7 +727,7 @@ namespace CV__SIMD_NAMESPACE {
+     //! @name Wide load with quad expansion
+@@ -725,7 +725,7 @@ namespace CV__SIMD_NAMESPACE {
      // Compatibility layer
  
      template<typename T> struct VTraits {
@@ -137,7 +208,7 @@ index 207b8cab4e..98caa4c7f3 100644
          using lane_type = typename T::lane_type;
      };
 diff --git a/modules/core/include/opencv2/core/hal/intrin_cpp.hpp b/modules/core/include/opencv2/core/hal/intrin_cpp.hpp
-index 633a58bca4..50ddb2b9c0 100644
+index 8619fec60c..1d28ad3e81 100644
 --- a/modules/core/include/opencv2/core/hal/intrin_cpp.hpp
 +++ b/modules/core/include/opencv2/core/hal/intrin_cpp.hpp
 @@ -494,9 +494,9 @@ typedef v_reg<ushort, 8> v_uint16x8;
@@ -163,7 +234,7 @@ index 633a58bca4..50ddb2b9c0 100644
  __CV_EXPAND(macro_name(uint64, __VA_ARGS__)) \
  __CV_EXPAND(macro_name(int64, __VA_ARGS__)) \
  
-@@ -2535,7 +2535,7 @@ template<int n> inline v_reg<int, n*2> v_trunc(const v_reg<double, n>& a)
+@@ -2531,7 +2531,7 @@ template<int n> inline v_reg<int, n*2> v_trunc(const v_reg<double, n>& a)
  /** @brief Convert to float
  
  Supported input type is cv::v_int32. */
@@ -172,7 +243,7 @@ index 633a58bca4..50ddb2b9c0 100644
  {
      v_reg<float, n> c;
      for( int i = 0; i < n; i++ )
-@@ -2574,7 +2574,7 @@ template<int n> inline v_reg<float, n*2> v_cvt_f32(const v_reg<double, n>& a, co
+@@ -2570,7 +2570,7 @@ template<int n> inline v_reg<float, n*2> v_cvt_f32(const v_reg<double, n>& a, co
  /** @brief Convert lower half to double
  
  Supported input type is cv::v_int32. */
@@ -181,7 +252,7 @@ index 633a58bca4..50ddb2b9c0 100644
  {
      v_reg<double, (n/2)> c;
      for( int i = 0; i < (n/2); i++ )
-@@ -2585,7 +2585,7 @@ template<int n> CV_INLINE v_reg<double, n/2> v_cvt_f64(const v_reg<int, n>& a)
+@@ -2581,7 +2581,7 @@ template<int n> CV_INLINE v_reg<double, n/2> v_cvt_f64(const v_reg<int, n>& a)
  /** @brief Convert to double high part of vector
  
  Supported input type is cv::v_int32. */
@@ -190,7 +261,7 @@ index 633a58bca4..50ddb2b9c0 100644
  {
      v_reg<double, (n/2)> c;
      for( int i = 0; i < (n/2); i++ )
-@@ -3012,12 +3012,12 @@ template<int shift, int n> inline v_reg<_Tpn, 2*n> v_rshr_##pack_suffix(const v_
+@@ -3008,12 +3008,12 @@ template<int shift, int n> inline v_reg<_Tpn, 2*n> v_rshr_##pack_suffix(const v_
  //! @note All variants except 64-bit use saturation.
  OPENCV_HAL_IMPL_C_RSHR_PACK(ushort, uchar, pack, saturate_cast)
  OPENCV_HAL_IMPL_C_RSHR_PACK(short, schar, pack, saturate_cast)
@@ -209,7 +280,7 @@ index 633a58bca4..50ddb2b9c0 100644
  
  //! @brief Helper macro
 diff --git a/modules/core/include/opencv2/core/saturate.hpp b/modules/core/include/opencv2/core/saturate.hpp
-index e0cc965ab6..57a3c54122 100644
+index 18ffd1c7af..ed7a831ff2 100644
 --- a/modules/core/include/opencv2/core/saturate.hpp
 +++ b/modules/core/include/opencv2/core/saturate.hpp
 @@ -88,8 +88,12 @@ template<typename _Tp> static inline _Tp saturate_cast(short v)    { return _Tp(
@@ -305,17 +376,56 @@ index e0cc965ab6..57a3c54122 100644
  template<> inline uint64 saturate_cast<uint64>(int64 v)      { return (uint64)std::max(v, (int64)0); }
  
  template<> inline int64 saturate_cast<int64>(uint64 v)       { return (int64)std::min(v, (uint64)LLONG_MAX); }
-@@ -168,6 +199,8 @@ template<> inline float16_t saturate_cast<float16_t>(ushort v)  { return float16
- template<> inline float16_t saturate_cast<float16_t>(short v)   { return float16_t((float)v); }
- template<> inline float16_t saturate_cast<float16_t>(unsigned v){ return float16_t((float)v); }
- template<> inline float16_t saturate_cast<float16_t>(int v)     { return float16_t((float)v); }
-+template<> inline float16_t saturate_cast<float16_t>(unsigned long v){ return float16_t((float)v); }
-+template<> inline float16_t saturate_cast<float16_t>(long v)     { return float16_t((float)v); }
- template<> inline float16_t saturate_cast<float16_t>(uint64 v)  { return float16_t((float)v); }
- template<> inline float16_t saturate_cast<float16_t>(int64 v)   { return float16_t((float)v); }
- template<> inline float16_t saturate_cast<float16_t>(float v)   { return float16_t(v); }
+@@ -168,6 +199,8 @@ template<> inline hfloat saturate_cast<hfloat>(ushort v)  { return hfloat((float
+ template<> inline hfloat saturate_cast<hfloat>(short v)   { return hfloat((float)v); }
+ template<> inline hfloat saturate_cast<hfloat>(unsigned v){ return hfloat((float)v); }
+ template<> inline hfloat saturate_cast<hfloat>(int v)     { return hfloat((float)v); }
++template<> inline hfloat saturate_cast<hfloat>(unsigned long v){ return hfloat((float)v); }
++template<> inline hfloat saturate_cast<hfloat>(long v)     { return hfloat((float)v); }
+ template<> inline hfloat saturate_cast<hfloat>(uint64 v)  { return hfloat((float)v); }
+ template<> inline hfloat saturate_cast<hfloat>(int64 v)   { return hfloat((float)v); }
+ template<> inline hfloat saturate_cast<hfloat>(float v)   { return hfloat(v); }
+diff --git a/modules/core/include/opencv2/core/traits.hpp b/modules/core/include/opencv2/core/traits.hpp
+index 522519389b..d34db80091 100644
+--- a/modules/core/include/opencv2/core/traits.hpp
++++ b/modules/core/include/opencv2/core/traits.hpp
+@@ -231,6 +231,21 @@ public:
+          };
+ };
+ 
++template<> class DataType<int32_t>
++{
++public:
++    typedef int32_t     value_type;
++    typedef value_type  work_type;
++    typedef value_type  channel_type;
++    typedef value_type  vec_type;
++    enum { generic_type = 0,
++           depth        = CV_32S,
++           channels     = 1,
++           fmt          = (int)'i',
++           type         = CV_MAKETYPE(depth, channels)
++         };
++};
++
+ template<> class DataType<float>
+ {
+ public:
+diff --git a/modules/dnn/include/opencv2/dnn/dict.hpp b/modules/dnn/include/opencv2/dnn/dict.hpp
+index 059ce9b28e..70ec410486 100644
+--- a/modules/dnn/include/opencv2/dnn/dict.hpp
++++ b/modules/dnn/include/opencv2/dnn/dict.hpp
+@@ -64,6 +64,8 @@ struct CV_EXPORTS_W DictValue
+     explicit DictValue(int64 i = 0)      : type(Param::INT), pi(new AutoBuffer<int64,1>) { (*pi)[0] = i; }       //!< Constructs integer scalar
+     CV_WRAP explicit DictValue(int i)    : type(Param::INT), pi(new AutoBuffer<int64,1>) { (*pi)[0] = i; }       //!< Constructs integer scalar
+     explicit DictValue(unsigned p)       : type(Param::INT), pi(new AutoBuffer<int64,1>) { (*pi)[0] = p; }       //!< Constructs integer scalar
++    CV_WRAP explicit DictValue(int32_t i)    : type(Param::INT), pi(new AutoBuffer<int64,1>) { (*pi)[0] = i; }       //!< Constructs integer scalar
++    explicit DictValue(uint32_t p)       : type(Param::INT), pi(new AutoBuffer<int64,1>) { (*pi)[0] = p; }       //!< Constructs integer scalar
+     CV_WRAP explicit DictValue(double p)         : type(Param::REAL), pd(new AutoBuffer<double,1>) { (*pd)[0] = p; }     //!< Constructs floating point scalar
+     CV_WRAP explicit DictValue(const String &s)  : type(Param::STRING), ps(new AutoBuffer<String,1>) { (*ps)[0] = s; }   //!< Constructs string scalar
+     explicit DictValue(const char *s)            : type(Param::STRING), ps(new AutoBuffer<String,1>) { (*ps)[0] = s; }   //!< @overload
 diff --git a/modules/imgproc/src/fixedpoint.inl.hpp b/modules/imgproc/src/fixedpoint.inl.hpp
-index f5f433fec6..064b5bf2b4 100644
+index 7303e06ad3..8c30960e8a 100644
 --- a/modules/imgproc/src/fixedpoint.inl.hpp
 +++ b/modules/imgproc/src/fixedpoint.inl.hpp
 @@ -171,9 +171,9 @@ class fixedpoint32
@@ -357,29 +467,11 @@ index f5f433fec6..064b5bf2b4 100644
  
      static CV_ALWAYS_INLINE ufixedpoint32 fromRaw(uint32_t v) { return ufixedpoint32(v); }
      CV_ALWAYS_INLINE uint32_t raw() { return val; }
-@@ -293,7 +293,7 @@ public:
-     CV_ALWAYS_INLINE fixedpoint16& operator = (const int8_t& _val) { val = ((int16_t)_val) << fixedShift; return *this; }
-     CV_ALWAYS_INLINE fixedpoint16& operator = (const cv::softdouble& _val) { val = (int16_t)cvRound(_val * cv::softdouble((1 << fixedShift))); return *this; }
-     CV_ALWAYS_INLINE fixedpoint16& operator = (const fixedpoint16& _val) { val = _val.val; return *this; }
--    CV_ALWAYS_INLINE fixedpoint16 operator * (const int8_t& val2) const { return cv::saturate_cast<int16_t>((int32_t)val * val2); }
-+    CV_ALWAYS_INLINE fixedpoint16 operator * (const int8_t& val2) const { return cv::saturate_cast<int16_t>((int)val * val2); }
-     CV_ALWAYS_INLINE fixedpoint32 operator * (const fixedpoint16& val2) const { return (int32_t)val * (int32_t)(val2.val); }
-     CV_ALWAYS_INLINE fixedpoint16 operator + (const fixedpoint16& val2) const
-     {
-@@ -341,7 +341,7 @@ public:
-     CV_ALWAYS_INLINE ufixedpoint16& operator = (const uint8_t& _val) { val = ((uint16_t)_val) << fixedShift; return *this; }
-     CV_ALWAYS_INLINE ufixedpoint16& operator = (const cv::softdouble& _val) { val = _val.getSign() ? 0 : (uint16_t)cvRound(_val * cv::softdouble((int32_t)(1 << fixedShift))); return *this; }
-     CV_ALWAYS_INLINE ufixedpoint16& operator = (const ufixedpoint16& _val) { val = _val.val; return *this; }
--    CV_ALWAYS_INLINE ufixedpoint16 operator * (const uint8_t& val2) const { return cv::saturate_cast<uint16_t>((uint32_t)val * val2); }
-+    CV_ALWAYS_INLINE ufixedpoint16 operator * (const uint8_t& val2) const { return cv::saturate_cast<uint16_t>((int32_t)val * val2); }
-     CV_ALWAYS_INLINE ufixedpoint32 operator * (const ufixedpoint16& val2) const { return ((uint32_t)val * (uint32_t)(val2.val)); }
-     CV_ALWAYS_INLINE ufixedpoint16 operator + (const ufixedpoint16& val2) const
-     {
 diff --git a/modules/imgproc/src/resize.cpp b/modules/imgproc/src/resize.cpp
-index f388587f9c..36f246a486 100644
+index 7e45f1e0f4..73111103b6 100644
 --- a/modules/imgproc/src/resize.cpp
 +++ b/modules/imgproc/src/resize.cpp
-@@ -3810,7 +3810,7 @@ void resize(int src_type,
+@@ -3900,7 +3900,7 @@ void resize(int src_type,
          resize_bitExact<schar, interpolationLinear<schar> >,
          resize_bitExact<ushort, interpolationLinear<ushort> >,
          resize_bitExact<short, interpolationLinear<short> >,

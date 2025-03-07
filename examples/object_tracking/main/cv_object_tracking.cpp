@@ -20,6 +20,11 @@ using namespace cv;
 extern "C" void cv_init_object_tracking(int pos_x, int pos_y);
 extern "C" void cv_object_tracking(uint8_t* data, int width, int heigth);
 
+extern "C" void cv_print_info();
+void cv_print_info()
+{
+    printf("OpenCV info print: %s", cv::getBuildInformation().c_str());
+}
 
 cv::Rect2i roi;
 Ptr<Tracker> tracker;

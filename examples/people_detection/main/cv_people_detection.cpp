@@ -58,7 +58,11 @@ public:
     }
 };
 
-
+extern "C" void cv_print_info();
+void cv_print_info()
+{
+    printf("OpenCV info print: %s", cv::getBuildInformation().c_str());
+}
 
 void cv_init_people_detect()
 {

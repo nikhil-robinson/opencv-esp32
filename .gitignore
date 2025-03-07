@@ -57,3 +57,4 @@ coverage_report/
 # IDF component manager
 managed_components
 dependencies.lock
+build

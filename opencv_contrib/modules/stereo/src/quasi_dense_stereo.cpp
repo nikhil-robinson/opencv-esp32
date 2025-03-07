@@ -28,8 +28,8 @@ public:
         mtcMap = cv::Mat_<cv::Point2i>(monoImgSize);
 
         cv::Size integralSize = cv::Size(monoImgSize.width+1, monoImgSize.height+1);
-        sum0 = cv::Mat_<int>(integralSize);
-        sum1 = cv::Mat_<int>(integralSize);
+        sum0 = cv::Mat_<int32_t>(integralSize);
+        sum1 = cv::Mat_<int32_t>(integralSize);
         ssum0 = cv::Mat_<double>(integralSize);
         ssum1 = cv::Mat_<double>(integralSize);
         // the disparity image.
@@ -623,8 +623,8 @@ public:
     // Containers to store the locations of each points pair.
     cv::Mat_<cv::Point2i> refMap;
     cv::Mat_<cv::Point2i> mtcMap;
-    cv::Mat_<int> sum0;
-    cv::Mat_<int> sum1;
+    cv::Mat_<int32_t> sum0;
+    cv::Mat_<int32_t> sum1;
     cv::Mat_<double> ssum0;
     cv::Mat_<double> ssum1;
     // Container to store the disparity un-normalized

@@ -59,7 +59,7 @@
 #define CAM_PIN_HREF    7
 #define CAM_PIN_PCLK    13
 
-#else // 
+#elif CONFIG_CAMERA_MODULE_AI_THINKER // 
 
 #define CAMERA_MODULE_NAME "AI-THINKER"
 
@@ -83,6 +83,7 @@
 
 #endif //
 
+#ifdef CONFIG_IDF_TARGET_ARCH_XTENSA
 
 static camera_config_t camera_config = {
     .pin_pwdn  = CAM_PIN_PWDN,
@@ -119,11 +120,13 @@ static camera_config_t camera_config = {
     .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
 
 };
-
+#endif // CONFIG_IDF_TARGET_ARCH_XTENSA
 
 void init_opencv_features2d();
 void test_opencv_features2d(uint8_t* data, int width, int heigth);
 
+
+#ifdef CONFIG_IDF_TARGET_ARCH_XTENSA
 esp_err_t camera_capture()
 {
     //acquire a frame
@@ -139,12 +142,14 @@ esp_err_t camera_capture()
     esp_camera_fb_return(fb);
     return ESP_OK;
 }
+#endif
 
 void app_main(void)
 {
     printf("Init\n");
     init_opencv_features2d();
 
+#ifdef CONFIG_IDF_TARGET_ARCH_XTENSA
     esp_err_t err = esp_camera_init(&camera_config);
     if (err != ESP_OK) {
         ESP_LOGE("CAM", "Camera Init Failed");
@@ -170,4 +175,7 @@ void app_main(void)
         float fps = 1*1000000/(fr_end - fr_start);
         ESP_LOGW("OpenCV", "Feature2d decode & compute - %2.2f FPS", fps);
     }
+#else
+    ESP_LOGW("OpenCV", "Camera module not defined!");
+#endif
 }

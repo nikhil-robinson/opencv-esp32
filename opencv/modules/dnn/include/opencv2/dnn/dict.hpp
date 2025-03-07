@@ -64,6 +64,8 @@ struct CV_EXPORTS_W DictValue
     explicit DictValue(int64 i = 0)      : type(Param::INT), pi(new AutoBuffer<int64,1>) { (*pi)[0] = i; }       //!< Constructs integer scalar
     CV_WRAP explicit DictValue(int i)    : type(Param::INT), pi(new AutoBuffer<int64,1>) { (*pi)[0] = i; }       //!< Constructs integer scalar
     explicit DictValue(unsigned p)       : type(Param::INT), pi(new AutoBuffer<int64,1>) { (*pi)[0] = p; }       //!< Constructs integer scalar
+    CV_WRAP explicit DictValue(int32_t i)    : type(Param::INT), pi(new AutoBuffer<int64,1>) { (*pi)[0] = i; }       //!< Constructs integer scalar
+    explicit DictValue(uint32_t p)       : type(Param::INT), pi(new AutoBuffer<int64,1>) { (*pi)[0] = p; }       //!< Constructs integer scalar
     CV_WRAP explicit DictValue(double p)         : type(Param::REAL), pd(new AutoBuffer<double,1>) { (*pd)[0] = p; }     //!< Constructs floating point scalar
     CV_WRAP explicit DictValue(const String &s)  : type(Param::STRING), ps(new AutoBuffer<String,1>) { (*ps)[0] = s; }   //!< Constructs string scalar
     explicit DictValue(const char *s)            : type(Param::STRING), ps(new AutoBuffer<String,1>) { (*ps)[0] = s; }   //!< @overload

@@ -21,7 +21,7 @@ set(extra_defines -D_DEFAULT_SOURCE)
 # Final flags for C and C++:
 set(c_flags "${includes} ${extra_defines}")
 set(cxx_flags "${includes} ${extra_defines}")
-set(cxx_flags "${includes} ${extra_defines} -DCV_INT32_T_IS_LONG_INT=ON")
+set(cxx_flags "${includes} ${extra_defines} -DCV_INT32_T_IS_LONG_INT=ON -Dalloca=__builtin_alloca")
 
 set(common_flags "-ggdb  -ffunction-sections -fdata-sections")
 
